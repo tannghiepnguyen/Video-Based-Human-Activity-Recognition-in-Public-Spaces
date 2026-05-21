@@ -1,0 +1,69 @@
+﻿# ==========================================
+# 1. Project Specifications (DO NOT IGNORE)
+# ==========================================
+# Ensure configuration and agent markdown files are explicitly tracked
+!README.md
+!config/*.yaml
+
+# ==========================================
+# 2. Deep Learning Data & Checkpoints
+# ==========================================
+# Ignore large raw and processed video/tensor datasets
+data/raw/
+data/processed/
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Ignore model weights, checkpoints, and export files
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.pb
+outputs/
+checkpoints/
+
+# ==========================================
+# 3. Python Ecosystem & Caching
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.tox/
+.coverage
+.cache
+htmlcov/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.idea/
+
+# ==========================================
+# 4. Jupyter Notebooks & UI Caching
+# ==========================================
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# Streamlit/Web application caches
+.streamlit/config.toml
+.streamlit/secrets.toml
+
+# ==========================================
+# 5. OS & IDE Specific files
+# ==========================================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
