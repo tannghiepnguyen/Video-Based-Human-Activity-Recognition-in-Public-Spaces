@@ -39,7 +39,11 @@ def process_capture(capture: cv2.VideoCapture, processor: StreamProcessor, max_f
             prediction.fps,
             prediction.alert,
         )
-        frame_slot.image(cv2.cvtColor(output_frame, cv2.COLOR_BGR2RGB), channels="RGB")
+        frame_slot.image(
+            cv2.cvtColor(output_frame, cv2.COLOR_BGR2RGB),
+            channels="RGB",
+            use_container_width=True,
+        )
 
         if prediction.alert:
             alert_slot.error("Falling detected above the configured confidence threshold.")
