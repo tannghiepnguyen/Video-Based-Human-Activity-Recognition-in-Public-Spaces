@@ -20,8 +20,10 @@ def get_processor(checkpoint_path: str | None) -> StreamProcessor:
 
 
 def process_capture(capture: cv2.VideoCapture, processor: StreamProcessor, max_frames: int) -> None:
-    frame_slot = st.empty()
-    alert_slot = st.empty()
+    left_margin, video_column, right_margin = st.columns([1, 5, 1])
+    with video_column:
+        frame_slot = st.empty()
+        alert_slot = st.empty()
     metrics_slot = st.sidebar.empty()
     processed = 0
 
