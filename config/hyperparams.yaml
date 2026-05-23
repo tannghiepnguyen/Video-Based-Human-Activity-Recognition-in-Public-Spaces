@@ -1,0 +1,36 @@
+project:
+  name: har-public-spaces
+  classes: ["Walking", "Running", "Standing", "Falling"]
+
+video:
+  frame_size: [160, 160]
+  sequence_length: 16
+  sample_stride: 2
+  source_fps: 30
+
+pose:
+  num_landmarks: 33
+  values_per_landmark: 4
+  min_detection_confidence: 0.5
+  min_tracking_confidence: 0.5
+
+model:
+  flow_channels: 2
+  cnn_embedding_dim: 128
+  rnn_hidden_dim: 128
+  rnn_layers: 1
+  dropout: 0.2
+  rnn_type: gru
+
+training:
+  batch_size: 8
+  epochs: 20
+  learning_rate: 0.0003
+  weight_decay: 0.00001
+  num_workers: 2
+  checkpoint_dir: checkpoints
+
+inference:
+  device: auto
+  falling_alert_threshold: 0.8
+  smoothing_window: 5
