@@ -2,9 +2,15 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+import sys
 
 import cv2
 import streamlit as st
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+DEFAULT_CHECKPOINT = PROJECT_ROOT / "checkpoints" / "har_net.pt"
 
 from components.metrics_panel import render_metrics
 from src.inference.stream_processor import StreamProcessor, open_video_source
@@ -63,7 +69,10 @@ def main() -> None:
     st.caption("Walking, running, standing, and falling recognition from video streams.")
 
     source_type = st.sidebar.radio("Input source", ["Video file", "Webcam/IP camera"])
-    checkpoint = st.sidebar.text_input("Checkpoint path", value="")
+    checkpoint = st.sidebar.text_input(
+        "Checkpoint path",
+        value=str(DEFAULT_CHECKPOINT) if DEFAULT_CHECKPOINT.exists() else "",
+    )
     max_frames = st.sidebar.slider("Frames to process", min_value=30, max_value=1200, value=300, step=30)
     processor = get_processor(checkpoint.strip() or None)
 
