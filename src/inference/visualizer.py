@@ -34,17 +34,6 @@ def draw_prediction_overlay(
         2,
         cv2.LINE_AA,
     )
-    cv2.putText(
-        canvas,
-        f"{fps:.1f} FPS",
-        (16, 60),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.6,
-        (230, 230, 230),
-        1,
-        cv2.LINE_AA,
-    )
-
     if alert:
         cv2.rectangle(canvas, (0, height - 58), (width, height), (0, 0, 180), thickness=-1)
         cv2.putText(
