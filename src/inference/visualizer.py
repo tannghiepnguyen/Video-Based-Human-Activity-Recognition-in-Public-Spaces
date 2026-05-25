@@ -20,20 +20,8 @@ def draw_prediction_overlay(
     alert: bool = False,
 ) -> np.ndarray:
     canvas = frame.copy()
-    color = CLASS_COLORS.get(label, (255, 255, 255))
     height, width = canvas.shape[:2]
 
-    cv2.rectangle(canvas, (0, 0), (width, 72), (0, 0, 0), thickness=-1)
-    cv2.putText(
-        canvas,
-        f"{label}  {confidence * 100:.1f}%",
-        (16, 32),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.85,
-        color,
-        2,
-        cv2.LINE_AA,
-    )
     if alert:
         cv2.rectangle(canvas, (0, height - 58), (width, height), (0, 0, 180), thickness=-1)
         cv2.putText(

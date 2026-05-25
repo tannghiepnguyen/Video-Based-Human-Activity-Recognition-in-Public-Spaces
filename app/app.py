@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 import sys
+import time
 
 import cv2
 import streamlit as st
@@ -25,21 +26,39 @@ def get_processor(checkpoint_path: str | None) -> StreamProcessor:
     return StreamProcessor(checkpoint_path=checkpoint_path or None)
 
 
-def process_capture(capture: cv2.VideoCapture, processor: StreamProcessor, max_frames: int) -> None:
+def process_capture(
+    capture: cv2.VideoCapture,
+    processor: StreamProcessor,
+    max_frames: int,
+    frame_skip: int,
+    ui_update_every: int,
+    draw_skeleton: bool,
+    match_source_fps: bool,
+) -> None:
     left_margin, video_column, right_margin = st.columns([1, 5, 1])
     with video_column:
         frame_slot = st.empty()
         alert_slot = st.empty()
     metrics_slot = st.sidebar.empty()
     processed = 0
+    displayed = 0
+    frame_index = 0
+    source_fps = capture.get(cv2.CAP_PROP_FPS) or 30.0
+    target_delay = 1.0 / max(source_fps / max(frame_skip, 1), 1.0)
 
     while capture.isOpened() and processed < max_frames:
+        loop_start = time.perf_counter()
         ok, frame = capture.read()
         if not ok:
             break
+        frame_index += 1
+
+        if (frame_index - 1) % frame_skip != 0:
+            continue
 
         output_frame, pose_result, prediction = processor.process_frame(frame)
-        output_frame = draw_pose_landmarks(output_frame, pose_result)
+        if draw_skeleton:
+            output_frame = draw_pose_landmarks(output_frame, pose_result)
         output_frame = draw_prediction_overlay(
             output_frame,
             prediction.label,
@@ -47,21 +66,28 @@ def process_capture(capture: cv2.VideoCapture, processor: StreamProcessor, max_f
             prediction.fps,
             prediction.alert,
         )
-        frame_slot.image(
-            cv2.cvtColor(output_frame, cv2.COLOR_BGR2RGB),
-            channels="RGB",
-            use_container_width=True,
-        )
+        if displayed % ui_update_every == 0:
+            frame_slot.image(
+                cv2.cvtColor(output_frame, cv2.COLOR_BGR2RGB),
+                channels="RGB",
+                use_container_width=True,
+            )
 
-        if prediction.alert:
-            alert_slot.error("Falling detected above the configured confidence threshold.")
-        else:
-            alert_slot.info(f"Current action: {prediction.label}")
+            if prediction.alert:
+                alert_slot.error("Falling detected above the configured confidence threshold.")
+            else:
+                alert_slot.info(f"Current action: {prediction.label}")
 
-        with metrics_slot.container():
-            render_metrics(prediction.probabilities, prediction.fps, prediction.latency_ms)
+            with metrics_slot.container():
+                render_metrics(prediction.probabilities, prediction.fps, prediction.latency_ms)
 
         processed += 1
+        displayed += 1
+
+        if match_source_fps:
+            elapsed = time.perf_counter() - loop_start
+            if elapsed < target_delay:
+                time.sleep(target_delay - elapsed)
 
 
 def main() -> None:
@@ -74,6 +100,10 @@ def main() -> None:
         value=str(DEFAULT_CHECKPOINT) if DEFAULT_CHECKPOINT.exists() else "",
     )
     max_frames = st.sidebar.slider("Frames to process", min_value=30, max_value=1200, value=300, step=30)
+    frame_skip = st.sidebar.slider("Process every Nth frame", min_value=1, max_value=10, value=3)
+    ui_update_every = st.sidebar.slider("Refresh display every N processed frames", min_value=1, max_value=10, value=2)
+    draw_skeleton = st.sidebar.checkbox("Draw pose skeleton", value=False)
+    match_source_fps = st.sidebar.checkbox("Match source video FPS", value=False)
     processor = get_processor(checkpoint.strip() or None)
 
     if source_type == "Video file":
@@ -90,7 +120,7 @@ def main() -> None:
         processor.reset()
         capture = open_video_source(tmp_path)
         try:
-            process_capture(capture, processor, max_frames)
+            process_capture(capture, processor, max_frames, frame_skip, ui_update_every, draw_skeleton, match_source_fps)
         finally:
             capture.release()
     else:
@@ -103,7 +133,7 @@ def main() -> None:
         processor.reset()
         capture = open_video_source(camera_source)
         try:
-            process_capture(capture, processor, max_frames)
+            process_capture(capture, processor, max_frames, frame_skip, ui_update_every, draw_skeleton, match_source_fps)
         finally:
             capture.release()
 

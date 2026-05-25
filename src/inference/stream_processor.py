@@ -13,7 +13,7 @@ import yaml
 
 from src.models.har_net import HARNet
 from src.pipeline.frame_extractor import resize_frame
-from src.pipeline.optical_flow import compute_flow_sequence, flow_magnitude
+from src.pipeline.optical_flow import compute_farneback_flow, flow_magnitude
 from src.pipeline.pose_estimator import PoseConfig, PoseEstimator
 
 
@@ -45,9 +45,12 @@ class StreamProcessor:
         self.alert_threshold = float(self.config["inference"].get("falling_alert_threshold", 0.8))
         self.device = self._resolve_device(self.config["inference"].get("device", "auto"))
         self.frame_buffer: Deque[np.ndarray] = deque(maxlen=self.sequence_length)
+        self.flow_buffer: Deque[np.ndarray] = deque(maxlen=self.sequence_length)
+        self.pose_buffer: Deque[np.ndarray] = deque(maxlen=self.sequence_length)
         self.confidence_history: Deque[np.ndarray] = deque(
             maxlen=int(self.config["inference"].get("smoothing_window", 5))
         )
+        self.previous_frame: np.ndarray | None = None
         self.pose_estimator = PoseEstimator(PoseConfig(**self.config.get("pose", {})))
         self.model = self._build_model()
         self.has_checkpoint = False
@@ -94,6 +97,15 @@ class StreamProcessor:
         self.frame_buffer.append(resized)
 
         pose_vector, pose_result = self.pose_estimator.extract(resized)
+        self.pose_buffer.append(pose_vector)
+        if self.previous_frame is None:
+            height, width = resized.shape[:2]
+            flow = np.zeros((height, width, 2), dtype=np.float32)
+        else:
+            flow = compute_farneback_flow(self.previous_frame, resized)
+        self.flow_buffer.append(flow)
+        self.previous_frame = resized
+
         if len(self.frame_buffer) < self.sequence_length:
             probabilities = self._cold_start_probabilities(pose_vector)
         elif self.has_checkpoint:
@@ -119,9 +131,8 @@ class StreamProcessor:
         return resized, pose_result, prediction
 
     def _model_probabilities(self) -> np.ndarray:
-        frames = list(self.frame_buffer)
-        flows = compute_flow_sequence(frames)
-        poses, _ = self.pose_estimator.extract_sequence(frames)
+        flows = np.stack(list(self.flow_buffer), axis=0)
+        poses = np.stack(list(self.pose_buffer), axis=0)
         flow_tensor = torch.from_numpy(flows).permute(0, 3, 1, 2).unsqueeze(0).float().to(self.device)
         pose_tensor = torch.from_numpy(poses).unsqueeze(0).float().to(self.device)
         with torch.no_grad():
@@ -129,10 +140,9 @@ class StreamProcessor:
         return probabilities.cpu().numpy()
 
     def _heuristic_probabilities(self) -> np.ndarray:
-        frames = list(self.frame_buffer)
-        flows = compute_flow_sequence(frames)
+        flows = np.stack(list(self.flow_buffer), axis=0)
         motion = flow_magnitude(flows)
-        fall_score = self._fall_score(frames[-1])
+        fall_score = self._fall_score(self.pose_buffer[-1])
 
         scores = np.array(
             [
@@ -154,8 +164,7 @@ class StreamProcessor:
             scores[self.classes.index("Walking")] = 0.25
         return scores / scores.sum()
 
-    def _fall_score(self, frame: np.ndarray) -> float:
-        pose_vector, _ = self.pose_estimator.extract(frame)
+    def _fall_score(self, pose_vector: np.ndarray) -> float:
         if not pose_vector.any():
             return 0.05
 
@@ -173,7 +182,10 @@ class StreamProcessor:
 
     def reset(self) -> None:
         self.frame_buffer.clear()
+        self.flow_buffer.clear()
+        self.pose_buffer.clear()
         self.confidence_history.clear()
+        self.previous_frame = None
 
     def close(self) -> None:
         self.pose_estimator.close()
